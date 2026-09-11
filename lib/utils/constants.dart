@@ -62,6 +62,14 @@ class AppColors {
   static const Color lightOnSurfaceVariant = Color(0xFF334155);
   static const Color lightPrimary = Color(0xFF38BDF8);
   static const Color lightSecondary = Color(0xFF818CF8);
+  static const Color lightSurfaceContainerHighest = Color(0xFFE2E8F0);
+  static const Color lightOutlineVariant = Color(0xFF94A3B8);
+  static const Color darkSurfaceContainerHighest = Color(0xFF1E293B);
+
+  /// Bloque de código (estilo HTML `.suggestion-code`)
+  static const Color codeBlockBackground = Color(0xFF0F172A);
+  static const Color codeBlockForeground = Color(0xFFA8D8F0);
+  static const Color codeBlockBackgroundDark = Color(0xFF0D1B2A);
 }
 
 // class AppConstants {

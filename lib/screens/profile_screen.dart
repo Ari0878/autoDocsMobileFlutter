@@ -282,22 +282,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   // ============================================================
-  // HEADER - CORREGIDO SIN OVERFLOW
+  // HEADER
   // ============================================================
 
   Widget _buildHeader(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    return Wrap(
-      alignment: WrapAlignment.spaceBetween,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      spacing: 8,
-      runSpacing: 8,
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         // Título - parte izquierda
-        SizedBox(
-          width: MediaQuery.of(context).size.width * 0.6,
+        Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -344,61 +340,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ],
           ),
         ),
-        // Botones - parte derecha
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Theme toggle
-            IconButton(
-              onPressed: _toggleTheme,
-              icon: Icon(
-                isDark ? Icons.light_mode : Icons.dark_mode,
-                size: 20,
-              ),
-              style: IconButton.styleFrom(
-                backgroundColor: theme.colorScheme.surfaceContainerHighest.withOpacity(0.3),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                padding: const EdgeInsets.all(8),
-                minimumSize: const Size(36, 36),
-              ),
+        const SizedBox(width: 12),
+        // Solo el toggle de tema queda en el header; "Cerrar sesión" se
+        // movió a la tarjeta de la cuenta, donde es una acción de cuenta
+        // y no compite visualmente con el título.
+        IconButton(
+          onPressed: _toggleTheme,
+          icon: Icon(
+            isDark ? Icons.light_mode : Icons.dark_mode,
+            size: 20,
+          ),
+          style: IconButton.styleFrom(
+            backgroundColor: theme.colorScheme.surfaceContainerHighest.withOpacity(0.3),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
             ),
-            const SizedBox(width: 4),
-            // Logout button compacto
-            TextButton(
-              onPressed: () => _showLogoutDialog(context),
-              style: TextButton.styleFrom(
-                backgroundColor: theme.colorScheme.error.withOpacity(0.1),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                minimumSize: const Size(36, 36),
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.logout,
-                    size: 16,
-                    color: theme.colorScheme.error,
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    'Salir',
-                    style: TextStyle(
-                      fontSize: 11,
-                      letterSpacing: 0.5,
-                      fontWeight: FontWeight.w600,
-                      color: theme.colorScheme.error,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
+            padding: const EdgeInsets.all(8),
+            minimumSize: const Size(36, 36),
+          ),
         ),
       ],
     );
@@ -499,7 +458,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
               fontWeight: FontWeight.bold,
             ),
           ),
-          const SizedBox(height: 8),
+          if (email.isNotEmpty) ...[
+            const SizedBox(height: 2),
+            Text(
+              email,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant.withOpacity(0.7),
+              ),
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
+            ),
+          ],
+          const SizedBox(height: 10),
           Wrap(
             spacing: 6,
             runSpacing: 6,
@@ -535,6 +505,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
             'Activado',
             Icons.security,
             valueColor: Colors.green,
+          ),
+          const SizedBox(height: 16),
+          Divider(color: theme.colorScheme.outlineVariant.withOpacity(0.2)),
+          const SizedBox(height: 4),
+          // Acción de cierre de sesión: vive al final de la tarjeta de
+          // cuenta como un enlace discreto, no como un botón prominente
+          // compitiendo con el resto de la interfaz.
+          Center(
+            child: TextButton.icon(
+              onPressed: () => _showLogoutDialog(context),
+              style: TextButton.styleFrom(
+                foregroundColor: theme.colorScheme.onSurfaceVariant.withOpacity(0.7),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                minimumSize: const Size(0, 0),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              icon: const Icon(Icons.logout, size: 15),
+              label: const Text(
+                'Cerrar sesión',
+                style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w500),
+              ),
+            ),
           ),
         ],
       ),
