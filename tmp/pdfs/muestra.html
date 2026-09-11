@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>manofactura_ia — Documentación Técnica</title>
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;600;700;800&display=swap');
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0f172a; --surface: #1e293b; --border: #334155;
+    --accent: #38bdf8; --accent2: #818cf8; --accent3: #34d399;
+    --text: #cbd5e1; --muted: #64748b; --white: #f1f5f9;
+  }
+  body { background: var(--bg); color: var(--text); font-family: Arial, Helvetica, sans-serif; font-size: 12pt; line-height: 1.6; text-align: justify; }
+  .container { max-width: 960px; margin: 0 auto; padding: 3rem 2rem; }
+  .doc-header { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 2.5rem; margin-bottom: 3rem; position: relative; overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+  .doc-header::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, var(--accent), var(--accent2), var(--accent3)); }
+  .doc-header h1 { font-size: 2rem; font-weight: 800; color: var(--white); margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem; }
+  .doc-header .subtitle { color: var(--muted); font-size: 0.9rem; font-family: 'JetBrains Mono', monospace; }
+  .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-top: 1.5rem; }
+  .stat { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 1rem; text-align: center; }
+  .stat .val { font-size: 1.8rem; font-weight: 800; color: var(--white); }
+  .stat .lbl { font-size: 0.7rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; margin-top: 0.2rem; font-family: 'JetBrains Mono', monospace; }
+  .quality-badge { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.4rem 1rem; background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.3); border-radius: 100px; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: #f59e0b; margin-top: 1rem; }
+  h1, h2, h3, h4 { font-family: Arial, Helvetica, sans-serif; text-align: left; }
+  h1 { font-size: 20pt; font-weight: 800; color: var(--white); margin: 2.5rem 0 1rem; padding-bottom: 0.5rem; border-bottom: 2px solid var(--accent); }
+  h2 { font-size: 16pt; font-weight: 700; color: var(--white); margin: 2rem 0 0.75rem; padding-left: 0.75rem; border-left: 3px solid var(--accent2); }
+  h3 { font-size: 13pt; font-weight: 700; color: var(--accent); margin: 1.5rem 0 0.5rem; }
+  h4 { font-size: 12pt; font-weight: 600; color: var(--text); margin: 1rem 0 0.4rem; }
+  p, li { margin: 0.75rem 0; font-size: 12pt; text-align: justify; }
+  code { background: rgba(56,189,248,0.14); border: 1px solid rgba(56,189,248,0.3); padding: 0.2rem 0.55rem; border-radius: 4px; font-family: 'JetBrains Mono', monospace; font-size: 1rem; font-weight: 700; color: #7dd3fc; }
+  pre { background: #0d1b2a; border: 1px solid var(--border); border-radius: 10px; padding: 1.25rem; overflow-x: auto; margin: 1rem 0; }
+  pre code { background: none; border: none; padding: 0; color: #bae6fd; font-size: 0.95rem; font-weight: 600; }
+  table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+  .report-table { width: 100%; border-collapse: collapse; margin: 1.2rem 0; font-size: 0.95rem; }
+  .report-table thead tr { background: rgba(56,189,248,0.08); }
+  .report-table th, .report-table td { padding: 0.85rem 1rem; border: 1px solid var(--border); }
+  .report-table th { color: var(--white); text-align: left; font-weight: 700; background: rgba(15,23,42,0.95); }
+  .report-table tr:nth-child(even) td { background: rgba(255,255,255,0.03); }
+  .report-table td { color: var(--text); }
+  th { background: var(--surface); color: var(--white); padding: 0.7rem 1rem; text-align: left; font-weight: 600; border: 1px solid var(--border); }
+  td { padding: 0.6rem 1rem; border: 1px solid var(--border); color: var(--text); }
+  tr:nth-child(even) td { background: rgba(255,255,255,0.02); }
+  blockquote { border-left: 3px solid var(--accent3); padding: 0.9rem 1.1rem; background: rgba(52,211,153,0.1); border-radius: 0 8px 8px 0; margin: 1rem 0; color: #6ee7b7; font-size: 1.05rem; font-weight: 600; font-style: italic; }
+  ul { padding-left: 1.5rem; margin: 0.5rem 0; }
+  li { margin: 0.3rem 0; }
+  hr { border: none; border-top: 1px solid var(--border); margin: 2.5rem 0; }
+  strong { color: var(--white); font-weight: 700; }
+  em { color: var(--accent2); font-style: italic; }
+  .toc { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; margin-bottom: 2rem; }
+  .toc h3 { color: var(--white); margin: 0 0 1rem; display: flex; align-items: center; gap: 0.5rem; }
+  .toc-list { list-style: none; padding-left: 0; }
+  .toc-list li { margin: 0.35rem 0; }
+  .toc-list a { color: var(--accent); text-decoration: none; }
+  .toc-list a:hover { text-decoration: underline; }
+  .toc-list .toc-h1 { font-weight: 700; font-size: 1rem; margin-top: 0.9rem; }
+  .toc-list .toc-h1 a { color: var(--white); }
+  .toc-list .toc-h2 { padding-left: 1.25rem; font-size: 0.92rem; }
+  .toc-list .toc-h3 { padding-left: 2.5rem; font-size: 0.85rem; }
+  .toc-list .toc-h3 a { color: var(--accent2); }
+  .doc-footer { margin-top: 4rem; padding: 2rem 1.5rem 1.5rem; border-top: 2px solid var(--border); text-align: center; color: var(--muted); font-family: 'JetBrains Mono', monospace; font-size: 0.78rem; background: var(--surface); border-radius: 12px; }
+  .doc-footer span { color: var(--accent); font-weight: 700; }
+  .doc-footer .footer-grid { display: flex; justify-content: center; gap: 2.5rem; flex-wrap: wrap; margin-bottom: 1rem; }
+  .doc-footer .footer-item { display: flex; flex-direction: column; align-items: center; gap: 0.2rem; }
+  .doc-footer .footer-item .fi-label { color: var(--muted); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; }
+  .doc-footer .footer-item .fi-val { color: var(--text); font-size: 0.82rem; }
+  .doc-footer .footer-divider { border: none; border-top: 1px solid var(--border); margin: 0.75rem 0; }
+  .doc-footer .footer-brand { color: var(--muted); font-size: 0.72rem; }
+  .diagram-section { margin: 2rem 0; }
+  @media print {
+    @page { margin: 2cm; @bottom-center { content: "Página " counter(page) " de " counter(pages); font-family: 'JetBrains Mono', monospace; font-size: 9pt; color: #64748b; } }
+    .doc-header { page-break-after: always; min-height: 85vh; }
+    .toc { page-break-after: always; }
+    h2 { page-break-before: auto; page-break-after: avoid; }
+    h3 { page-break-after: avoid; }
+    .diagram-section { page-break-inside: avoid; }
+    pre { page-break-inside: avoid; }
+    body { background: white !important; color: #1e293b !important; }
+    .container { max-width: 100%; padding: 0; }
+  }
+  .diagram-section h3 { margin-bottom: 0.75rem !important; }
+  .diagram-section img { margin-top: 0 !important; }
+  .material-icons { font-size: 1.2em; vertical-align: middle; }
+  .material-symbols-outlined { font-size: 1.2em; vertical-align: middle; }
+
+.autodocs-cover { font-family: Arial, sans-serif; text-align:left; background:#fff; color:#0f172a; padding:32px; border-top:12px solid #38bdf8; }
+.ad-brand { background:#0f172a; color:white; padding:24px; font-size:26px; font-weight:bold; }
+.ad-brand span { color:#38bdf8; }
+.ad-tag { background:#0f172a; color:#94a3b8; padding:0 24px 24px; font-size:10px; letter-spacing:2px; }
+.ad-kicker { margin-top:85px; color:#0369a1; font-size:10px; letter-spacing:2px; font-weight:bold; }
+.ad-title { margin-top:20px; font-size:34px; line-height:1.18; font-weight:bold; overflow-wrap:anywhere; }
+.ad-subtitle { margin-top:18px; font-size:20px; color:#475569; }
+.ad-rule { width:64px; border-top:4px solid #38bdf8; margin-top:28px; }
+.ad-meta { margin-top:48px; width:100%; table-layout:fixed; }
+.ad-meta td { border:0; background:white !important; color:#64748b; font-size:9px; padding:10px 10px 10px 0; text-align:left; overflow-wrap:anywhere; }
+.ad-meta b { display:block; color:#0f172a; font-size:11px; line-height:1.5; margin-top:6px; }
+.ad-signature { margin-top:40px; color:#0369a1; font-weight:bold; font-size:10px; letter-spacing:1px; }
+.ad-signature span { display:block; margin-top:8px; color:#64748b; font-size:10px; letter-spacing:0; font-weight:normal; }
+@media print {
+ @page { size:A4; margin:20mm; @top-left { content:"AutoDocs AI / Documentación técnica"; font:8pt Arial; color:#64748b; } @bottom-left { content:"GENERADO POR AUTODOCS AI"; font:7pt Arial; color:#0369a1; } @bottom-center { content:none; } @bottom-right { content:counter(page) " / " counter(pages); font:8pt Arial; color:#64748b; } }
+ @page:first { @top-left { content:none; } @bottom-left { content:none; } @bottom-right { content:none; } }
+ :root { --bg:#fff; --surface:#f1f5f9; --border:#cbd5e1; --text:#334155; --white:#0f172a; --muted:#64748b; --accent:#0369a1; --accent2:#334155; }
+ .autodocs-cover { padding:0; height:250mm; position:relative; page-break-after:always; }
+ .ad-signature { position:absolute; bottom:8mm; left:0; right:0; border-top:1px solid #e2e8f0; padding-top:6mm; }
+ .ad-brand { padding-top:14mm; font-size:28pt; }
+ .ad-tag { padding-bottom:14mm; }
+ .ad-meta { margin-top:20mm; }
+ .ad-title { font-size:32pt; }
+ .toc { border:0; border-top:2px solid #38bdf8; border-radius:0; background:#f8fafc; }
+ .material-icons, .material-symbols-outlined { display:none; }
+ .content h1, .content h2, .content h3 { color:#0f172a; }
+ .content h2 { border-left-color:#38bdf8; }
+ .report-table th, th { background:#0f172a !important; color:white !important; }
+ .report-table td, td { color:#334155; }
+ pre { background:#f1f5f9; } pre code, code { color:#0369a1; }
+ .doc-footer { background:#f8fafc; border-radius:0; }
+}
+
+</style>
+</head>
+<body>
+<div class="container">
+  <section class="autodocs-cover">
+      <div class="ad-brand">&lt;/&gt; &nbsp; AutoDocs <span>AI</span></div>
+      <div class="ad-tag">DEL CÓDIGO A LA DOCUMENTACIÓN</div>
+      <div class="ad-kicker">INFORME DE PROYECTO</div>
+      <div class="ad-title">manofactura_ia</div>
+      <div class="ad-subtitle">Documentación técnica</div>
+      <div class="ad-rule"></div>
+      <table class="ad-meta"><tr><td>GENERADO<br><b>11/09/2026 06:40 UTC</b></td>
+      <td>LENGUAJE PRINCIPAL<br><b>Python</b></td></tr>
+      <tr><td>ORIGEN<br><b>Repositorio GitHub</b></td><td>REFERENCIA<br><b>manofactura-ia-muestra</b></td></tr></table>
+      <div class="ad-signature">GENERADO POR AUTODOCS AI<br><span>Análisis de código · Documentación de software</span></div>
+    </section>
+  <div class="toc">
+    <h3><span class="material-icons">list</span> Tabla de Contenidos</h3>
+    <ul class="toc-list"><li class="toc-h1"><a href="#sec1">1. 1. Resumen del proyecto</a></li><li class="toc-h2"><a href="#sec2">1.1 Alcance del análisis</a></li><li class="toc-h2"><a href="#sec3">1.2 Estructura técnica</a></li><li class="toc-h1"><a href="#sec4">2. 2. Referencia de código</a></li><li class="toc-h2"><a href="#sec5">create_app</a></li><li class="toc-h2"><a href="#sec6">index</a></li><li class="toc-h2"><a href="#sec7">productos</a></li><li class="toc-h2"><a href="#sec8">materia_prima</a></li><li class="toc-h2"><a href="#sec9">maquinas</a></li><li class="toc-h2"><a href="#sec10">operadores</a></li><li class="toc-h2"><a href="#sec11">estado_maquinas</a></li><li class="toc-h2"><a href="#sec12">produccion</a></li></ul>
+  </div>
+  <div class="content"><h1 id="sec1">1. Resumen del proyecto</h1>
+<p>El proyecto manofactura_ia implementa un sistema de información manufacturera. Su código incluye módulos de producción, mantenimiento y análisis de calidad.</p>
+<h2 id="sec2">1.1 Alcance del análisis</h2>
+<p>Esta muestra utiliza los resultados del análisis estático del repositorio. La portada identifica el sistema que genera el documento y mantiene el nombre del proyecto como referencia principal.</p>
+<h2 id="sec3">1.2 Estructura técnica</h2>
+<table class="report-table">
+<thead>
+<tr>
+<th>Elemento</th>
+<th>Resultado</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Lenguaje principal</td>
+<td>Python</td>
+</tr>
+<tr>
+<td>Archivos detectados</td>
+<td>64</td>
+</tr>
+<tr>
+<td>Funciones</td>
+<td>195</td>
+</tr>
+<tr>
+<td>Endpoints</td>
+<td>55</td>
+</tr>
+</tbody>
+</table>
+<h1 id="sec4">2. Referencia de código</h1>
+<p>A continuación se presenta una selección de funciones detectadas en el código fuente.</p>
+<h2 id="sec5">create_app</h2>
+<p>Archivo: <code>app.py</code></p>
+<p>Crea la aplicación Flask e inicializa sus configuraciones.</p>
+<p>El objetivo es centralizar el arranque y el registro de rutas para que la
+aplicación quede ordenada y fácil de mantener.</p>
+<h2 id="sec6">index</h2>
+<p>Archivo: <code>app.py</code></p>
+<p>Página principal del dashboard general.</p>
+<h2 id="sec7">productos</h2>
+<p>Archivo: <code>app.py</code></p>
+<p>Página del módulo de productos.</p>
+<h2 id="sec8">materia_prima</h2>
+<p>Archivo: <code>app.py</code></p>
+<p>Página del módulo de materia prima.</p>
+<h2 id="sec9">maquinas</h2>
+<p>Archivo: <code>app.py</code></p>
+<p>Página del módulo de máquinas.</p>
+<h2 id="sec10">operadores</h2>
+<p>Archivo: <code>app.py</code></p>
+<p>Página del módulo de operadores.</p>
+<h2 id="sec11">estado_maquinas</h2>
+<p>Archivo: <code>app.py</code></p>
+<p>Página de diagnóstico del estado de las máquinas.</p>
+<h2 id="sec12">produccion</h2>
+<p>Archivo: <code>app.py</code></p>
+<p>Página del módulo de producción.</p>
+</div>
+  <div class="doc-footer">
+    <div class="footer-grid">
+      <div class="footer-item">
+        <span class="fi-label">Proyecto</span>
+        <span class="fi-val">manofactura_ia</span>
+      </div>
+      <div class="footer-item">
+        <span class="fi-label">Archivos</span>
+        <span class="fi-val">64</span>
+      </div>
+      <div class="footer-item">
+        <span class="fi-label">Clases</span>
+        <span class="fi-val">1</span>
+      </div>
+      <div class="footer-item">
+        <span class="fi-label">Funciones</span>
+        <span class="fi-val">195</span>
+      </div>
+      <div class="footer-item">
+        <span class="fi-label">Endpoints</span>
+        <span class="fi-val">55</span>
+      </div>
+      <div class="footer-item">
+        <span class="fi-label">Score</span>
+        <span class="fi-val" style="color:#f59e0b">59/100</span>
+      </div>
+      <div class="footer-item">
+        <span class="fi-label">Generado</span>
+        <span class="fi-val">11/09/2026 06:40 UTC</span>
+      </div>
+    </div>
+    <hr class="footer-divider">
+    <div class="footer-brand">Generado automáticamente por <span>AutoDocs AI</span> &middot; Documentación Técnica Profesional</div>
+  </div>
+</div>
+</body>
+</html>

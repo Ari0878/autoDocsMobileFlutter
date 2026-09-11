@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
+import '../services/pdf_file_writer.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -65,82 +67,99 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
   // CARGA DE DATOS
   // ============================================================
 
+  DateTime? _pollStarted;
+  bool _refreshing = false;
+
   Future<void> _loadProject() async {
+    if (_refreshing) return;
+    _pollTimer?.cancel();
+    _pollStarted = DateTime.now();
     setState(() {
       _isLoading = true;
+      _isAnalyzing = false;
       _error = null;
     });
+    await _refreshAnalysis();
+  }
 
+  Future<void> _refreshAnalysis() async {
+    if (_refreshing || !mounted) return;
+    _refreshing = true;
     try {
-      final projectResponse = await _api.get('/api/projects/${widget.projectId}');
-      if (projectResponse.statusCode != 200) {
-        throw Exception('Error al cargar proyecto');
+      final response = await _api.get('/api/projects/${widget.projectId}');
+      if (!mounted) return;
+      _project = Project.fromJson(response.data);
+      debugPrint('[Análisis ${widget.projectId}] estado: ${_project!.status}');
+      if (_project!.hasError || _project!.status == 'failed') {
+        throw StateError(_project!.errorMessage ?? 'El servidor no pudo analizar el proyecto.');
       }
-      final projectData = projectResponse.data;
-      _project = Project.fromJson(projectData);
-
-      if (_project!.status == 'completed') {
+      if (_project!.isCompleted) {
         await _loadResults();
+        if (!mounted) return;
         setState(() {
           _isLoading = false;
           _isAnalyzing = false;
         });
-      } else if (_project!.status == 'analyzing' || _project!.status == 'pending') {
-        setState(() {
-          _isLoading = false;
-          _isAnalyzing = true;
-        });
-        _startPolling();
-      } else {
-        setState(() {
-          _isLoading = false;
-        });
+        return;
       }
-    } catch (e) {
+      if (!_project!.isPending && !_project!.isAnalyzing) {
+        throw StateError('Estado de análisis desconocido: ${_project!.status}');
+      }
+      if (DateTime.now().difference(_pollStarted!) >= const Duration(minutes: 10)) {
+        throw StateError('El servidor sigue indicando ${_project!.status}. '
+            'Se detuvo la consulta automática; puedes actualizar para comprobar el análisis.');
+      }
       setState(() {
         _isLoading = false;
-        _error = e.toString();
+        _isAnalyzing = true;
       });
+      // Programar la siguiente consulta después de terminar evita solicitudes superpuestas.
+      _pollTimer = Timer(const Duration(seconds: 3), _refreshAnalysis);
+    } catch (e, stack) {
+      debugPrint('[Análisis ${widget.projectId}] $e\n$stack');
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _isAnalyzing = false;
+        _error = ApiService.errorMessage(e);
+      });
+    } finally {
+      _refreshing = false;
     }
   }
 
   Future<void> _loadResults() async {
+    final response = await _api.get('/api/analysis/${widget.projectId}/results');
+    if (!mounted) return;
+    final data = response.data;
+    if (data is! Map || data['status'] != 'completed' || data['results'] is! Map) {
+      throw StateError('El servidor marcó el proyecto como completado pero no devolvió resultados.');
+    }
+    _analysisResults = Map<String, dynamic>.from(data['results']);
+    await _loadSelections();
+  }
+
+  Future<void> _startAnalysis() async {
+    if (_isLoading || _refreshing) return;
+    _pollTimer?.cancel();
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
     try {
-      final response = await _api.get('/api/analysis/${widget.projectId}/results');
-      if (response.statusCode == 200) {
-        final data = response.data;
-        if (data['status'] == 'completed' && data['results'] != null) {
-          _analysisResults = data['results'];
-          await _loadSelections();
-        }
-      }
-    } catch (e) {
-      print('Error loading results: $e');
+      await _api.startAnalysis(widget.projectId);
+      if (!mounted) return;
+      await _loadProject();
+    } catch (e, stack) {
+      debugPrint('[Inicio de análisis ${widget.projectId}] $e\n$stack');
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _isAnalyzing = false;
+        _error = ApiService.errorMessage(e);
+      });
     }
   }
-
-  void _startPolling() {
-    _pollTimer?.cancel();
-    _pollTimer = Timer.periodic(const Duration(seconds: 3), (timer) async {
-      try {
-        final response = await _api.get('/api/analysis/${widget.projectId}/results');
-        if (response.statusCode == 200) {
-          final data = response.data;
-          if (data['status'] == 'completed' && data['results'] != null) {
-            _analysisResults = data['results'];
-            await _loadSelections();
-            if (mounted) {
-              setState(() {
-                _isAnalyzing = false;
-              });
-            }
-            _pollTimer?.cancel();
-          }
-        }
-      } catch (_) {}
-    });
-  }
-
   // ============================================================
   // SELECCIONES
   // ============================================================
@@ -207,33 +226,30 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
   // EXPORTAR PDF
   // ============================================================
 
+  bool _isExporting = false;
+
   Future<void> _exportPdf() async {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const _LoadingDialog(
-        title: 'Generando PDF',
-        message: 'Por favor espere mientras generamos el documento...',
-      ),
-    );
-
+    if (_isExporting) return;
+    setState(() => _isExporting = true);
     try {
-      final url = '/api/export/${widget.projectId}/pdf?selected=${Uri.encodeComponent(jsonEncode(_selections))}';
-      final response = await _api.get(url);
-
-      if (mounted) Navigator.pop(context);
-
-      if (response.statusCode == 200) {
-        _showSuccessDialog('¡PDF Generado!', 'El archivo PDF se descargó correctamente.');
-      } else {
-        _showErrorDialog('Error al generar PDF', response.data['error'] ?? 'Error desconocido');
-      }
-    } catch (e) {
-      if (mounted) Navigator.pop(context);
-      _showErrorDialog('Error', e.toString());
+      final bytes = await _api.downloadProjectPdf(widget.projectId, _selections);
+      if (!mounted) return;
+      final name = (_project?.name ?? 'proyecto')
+          .replaceAll(RegExp(r'[<>:"/\\|?*\x00-\x1F]'), '_');
+      final saved = await savePdf('${name}_documentacion.pdf', bytes);
+      if (!mounted || !saved) return;
+      _showSuccessDialog(
+        kIsWeb ? 'Descarga iniciada' : 'PDF guardado',
+        kIsWeb ? 'Revisa las descargas de tu navegador.'
+            : 'El PDF se guardó en la ubicación seleccionada.',
+      );
+    } catch (e, stack) {
+      debugPrint('[Exportar PDF ${widget.projectId}] $e\n$stack');
+      if (mounted) _showErrorDialog('Error al descargar PDF', ApiService.errorMessage(e));
+    } finally {
+      if (mounted) setState(() => _isExporting = false);
     }
   }
-
   void _showSuccessDialog(String title, String message) {
     showDialog(
       context: context,
@@ -348,11 +364,12 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
           // Botón de exportar PDF
           if (_project?.status == 'completed')
             IconButton(
-              onPressed: _exportPdf,
-              icon: Icon(
-                Icons.picture_as_pdf,
-                color: theme.colorScheme.primary,
-              ),
+              onPressed: _isExporting ? null : _exportPdf,
+              tooltip: _isExporting ? 'Generando PDF...' : 'Descargar PDF',
+              icon: _isExporting
+                  ? const SizedBox(width: 20, height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2))
+                  : Icon(Icons.picture_as_pdf, color: theme.colorScheme.primary),
             ),
         ],
       ),
@@ -396,6 +413,11 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
               ),
               child: const Text('Reintentar'),
             ),
+            if (_project != null && !_project!.isCompleted && !_project!.isAnalyzing)
+              TextButton(
+                onPressed: _startAnalysis,
+                child: const Text('Reintentar análisis'),
+              ),
           ],
         ),
       );
@@ -458,7 +480,7 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
             ),
             const SizedBox(height: 8),
             Text(
-              'Esto puede tomar unos segundos dependiendo del tamaño del proyecto.',
+              'El tiempo depende del tamaño del proyecto. El estado se actualiza automáticamente.',
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
@@ -475,6 +497,11 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
               width: 200,
               height: 40,
             ),
+            if (_project?.isPending == true)
+              TextButton(
+                onPressed: _startAnalysis,
+                child: const Text('Iniciar análisis'),
+              ),
           ],
         ),
       ),

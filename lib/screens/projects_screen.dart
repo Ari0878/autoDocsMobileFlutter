@@ -1,3 +1,4 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:dio/dio.dart';
@@ -151,7 +152,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error: ${e.toString()}'),
+            content: Text('Error: ${ApiService.errorMessage(e)}'),
             backgroundColor: Colors.red,
           ),
         );
@@ -1099,7 +1100,8 @@ class _CreateProjectDialogState extends State<_CreateProjectDialog> {
   final _githubController = TextEditingController();
   final ApiService _api = ApiService();
   bool _isLoading = false;
-  String? _selectedFileName;
+  PlatformFile? _selectedFile;
+  String? get _selectedFileName => _selectedFile?.name;
 
   @override
   void dispose() {
@@ -1110,13 +1112,33 @@ class _CreateProjectDialogState extends State<_CreateProjectDialog> {
   }
 
   Future<void> _pickFile() async {
-    setState(() {
-      _selectedFileName = 'proyecto.zip';
-    });
+    if (_isLoading) return;
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['zip'],
+        withData: true,
+      );
+      if (!mounted || result == null) return;
+      final file = result.files.single;
+      if (!file.name.toLowerCase().endsWith('.zip') ||
+          file.bytes == null || file.bytes!.isEmpty) {
+        throw const FormatException('Selecciona un archivo ZIP válido y no vacío.');
+      }
+      setState(() {
+        _selectedFile = file;
+        _githubController.clear();
+      });
+    } catch (e, stack) {
+      debugPrint('No se pudo seleccionar ZIP: $e\n$stack');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(ApiService.errorMessage(e))),
+      );
+    }
   }
-
   Future<void> _createProject() async {
-    if (!_formKey.currentState!.validate()) return;
+    if (_isLoading || !_formKey.currentState!.validate()) return;
 
     if (_selectedFileName == null && _githubController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1130,7 +1152,20 @@ class _CreateProjectDialogState extends State<_CreateProjectDialog> {
     setState(() => _isLoading = true);
 
     try {
+      final githubUrl = _githubController.text.trim();
+      if (githubUrl.isNotEmpty) {
+        final uri = Uri.tryParse(githubUrl);
+        if (uri == null || uri.scheme != 'https' || uri.host != 'github.com' ||
+            uri.pathSegments.where((s) => s.isNotEmpty).length != 2) {
+          throw const FormatException('Ingresa una URL como https://github.com/usuario/repositorio');
+        }
+      }
       final formData = FormData();
+      if (githubUrl.isEmpty && _selectedFile != null) {
+        formData.files.add(MapEntry('file', MultipartFile.fromBytes(
+          _selectedFile!.bytes!, filename: _selectedFile!.name,
+        )));
+      }
 
       formData.fields.addAll([
         MapEntry('name', _nameController.text.trim()),
@@ -1138,18 +1173,14 @@ class _CreateProjectDialogState extends State<_CreateProjectDialog> {
         MapEntry('github_url', _githubController.text.trim()),
       ]);
 
-      final response = await _api.post(
-        '/api/projects/',
-        data: formData,
-        isMultipart: true,
-      );
+      final response = await _api.createAndAnalyzeProject(formData);
 
-      if (response.statusCode == 200 || response.statusCode == 201) {
+      if (response.statusCode == 200 || response.statusCode == 201 || response.statusCode == 202) {
         if (mounted) {
           Navigator.pop(context, true);
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Proyecto creado exitosamente'),
+              content: Text('Proyecto creado; análisis iniciado'),
               backgroundColor: Colors.green,
             ),
           );
@@ -1169,7 +1200,7 @@ class _CreateProjectDialogState extends State<_CreateProjectDialog> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error: ${e.toString()}'),
+            content: Text('Error: ${ApiService.errorMessage(e)}'),
             backgroundColor: Colors.red,
           ),
         );
