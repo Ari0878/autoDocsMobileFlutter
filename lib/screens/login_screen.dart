@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../providers/auth_provider.dart';
 import '../services/auth_service.dart';
+import '../services/biometric_auth_service.dart';
 import '../widgets/gradient_button.dart';
 import '../widgets/password_field.dart';
 import '../utils/validators.dart';
@@ -21,6 +22,36 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isLoading = false;
   String? _error;
 
+  // ============================================================
+  // BIOMETRÍA (candado local, no autentica contra el backend)
+  // ============================================================
+  final BiometricAuthService _biometricAuth = BiometricAuthService();
+  bool _checkingBiometric = true;
+  bool _biometricAvailable = false; // el dispositivo tiene huella/Face ID
+  bool _biometricEnabled = false;   // el usuario ya guardó credenciales
+  bool _isBiometricLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _initBiometricState();
+  }
+
+  Future<void> _initBiometricState() async {
+    final available = await _biometricAuth.isBiometricAvailable();
+    final enabled = await _biometricAuth.isBiometricLoginEnabled();
+
+    // 🔍 LOG TEMPORAL: confirma qué está detectando el servicio al arrancar.
+    debugPrint('🔐 [initBiometricState] available=$available enabled=$enabled');
+
+    if (!mounted) return;
+    setState(() {
+      _biometricAvailable = available;
+      _biometricEnabled = enabled;
+      _checkingBiometric = false;
+    });
+  }
+
   @override
   void dispose() {
     _emailController.dispose();
@@ -28,30 +59,190 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
+  // ============================================================
+  // LOGIN CON FORMULARIO (usuario y contraseña)
+  // ============================================================
+
   Future<void> _handleLogin() async {
     if (!_formKey.currentState!.validate()) return;
 
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+
+    final success = await _performLogin(email, password);
+    if (!success) return;
+
+    // Si el dispositivo soporta huella y el usuario aún no la activó,
+    // le ofrecemos guardar estas credenciales cifradas para la próxima vez.
+    if (_biometricAvailable && !_biometricEnabled) {
+      await _offerEnableBiometric(email, password);
+    }
+
+    if (!mounted) return;
+    Navigator.pushReplacementNamed(context, '/home');
+  }
+
+  // ============================================================
+  // LOGIN CON HUELLA (reutiliza credenciales guardadas localmente)
+  // ============================================================
+
+  Future<void> _handleBiometricLogin() async {
+    if (_isLoading || _isBiometricLoading) return;
+
+    setState(() {
+      _isBiometricLoading = true;
+      _error = null;
+    });
+
+    final authenticated = await _biometricAuth.authenticate(
+      reason: 'Confirma tu huella para iniciar sesión',
+    );
+
+    debugPrint('🔐 [handleBiometricLogin] authenticated=$authenticated');
+
+    if (!mounted) return;
+
+    if (!authenticated) {
+      setState(() {
+        _isBiometricLoading = false;
+        _error = 'No se pudo verificar tu huella. Intenta de nuevo.';
+      });
+      return;
+    }
+
+    final stored = await _biometricAuth.getStoredCredentials();
+    debugPrint('🔐 [handleBiometricLogin] stored=${stored != null}');
+
+    if (!mounted) return;
+
+    if (stored == null) {
+      setState(() {
+        _isBiometricLoading = false;
+        _biometricEnabled = false;
+        _error = 'No hay una sesión guardada. Inicia sesión con tu contraseña.';
+      });
+      return;
+    }
+
+    final success = await _performLogin(stored.email, stored.password);
+    setState(() => _isBiometricLoading = false);
+
+    if (!success) return;
+    if (!mounted) return;
+    Navigator.pushReplacementNamed(context, '/home');
+  }
+
+  /// Lógica común de autenticación contra el backend. No navega ni
+  /// gestiona la huella; solo hace login y actualiza el estado de error.
+  Future<bool> _performLogin(String email, String password) async {
     setState(() {
       _isLoading = true;
       _error = null;
     });
 
     final authProvider = context.read<AuthProvider>();
-    final success = await authProvider.login(
-      _emailController.text.trim(),
-      _passwordController.text,
-    );
+    final success = await authProvider.login(email, password);
 
-    if (!mounted) return;
+    if (!mounted) return false;
 
-    if (success) {
-      Navigator.pushReplacementNamed(context, '/home');
-    } else {
+    if (!success) {
       setState(() {
         _isLoading = false;
         _error = authProvider.error ?? 'Error al iniciar sesión';
       });
+      // Si las credenciales guardadas ya no son válidas, las borramos para
+      // no quedar en un ciclo de "huella válida, login inválido".
+      if (_biometricEnabled) {
+        _biometricAuth.disableBiometricLogin();
+        setState(() => _biometricEnabled = false);
+      }
+      return false;
     }
+
+    setState(() => _isLoading = false);
+    return true;
+  }
+
+  Future<void> _offerEnableBiometric(String email, String password) async {
+    final theme = Theme.of(context);
+    final accept = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: theme.colorScheme.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            Icon(Icons.fingerprint, color: theme.colorScheme.primary),
+            const SizedBox(width: 8),
+            // 🔧 FIX overflow: el texto necesita Expanded para hacer wrap
+            // en vez de desbordar el ancho del diálogo.
+            Expanded(
+              child: Text(
+                'Inicio rápido con huella',
+                style: theme.textTheme.titleLarge,
+              ),
+            ),
+          ],
+        ),
+        content: const Text(
+          '¿Quieres usar tu huella para entrar más rápido la próxima vez? '
+          'Tus credenciales se guardan cifradas solo en este dispositivo.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Ahora no'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Activar'),
+          ),
+        ],
+      ),
+    );
+
+    debugPrint('🔐 [offerEnableBiometric] accept=$accept');
+    if (accept != true) return;
+
+    // Confirmamos con una huella real antes de guardar nada, para asegurar
+    // que quien activa la función es realmente el dueño del dedo.
+    final confirmed = await _biometricAuth.authenticate(
+      reason: 'Confirma tu huella para activar el inicio rápido',
+    );
+
+    // 🔍 LOG TEMPORAL: si esto imprime "false" o no imprime nada, el problema
+    // está dentro de BiometricAuthService.authenticate() (revisa permisos
+    // nativos de local_auth en Info.plist / AndroidManifest.xml).
+    debugPrint('🔐 [offerEnableBiometric] confirmed=$confirmed');
+    if (!confirmed) return;
+
+    try {
+      await _biometricAuth.enableBiometricLogin(email, password);
+      debugPrint('🔐 [offerEnableBiometric] credenciales guardadas OK');
+    } catch (e, st) {
+      // 🔍 LOG TEMPORAL: si esto se imprime, el problema está en cómo
+      // BiometricAuthService.enableBiometricLogin() guarda las credenciales
+      // (por ejemplo un error de flutter_secure_storage).
+      debugPrint('🔐 [offerEnableBiometric] ERROR guardando credenciales: $e');
+      debugPrint('$st');
+      if (!mounted) return;
+      setState(() {
+        _error = 'No se pudo activar el inicio con huella. Intenta de nuevo.';
+      });
+      return;
+    }
+
+    if (!mounted) return;
+    setState(() => _biometricEnabled = true);
+  }
+
+  void _forgetBiometricLogin() async {
+    await _biometricAuth.disableBiometricLogin();
+    if (!mounted) return;
+    setState(() => _biometricEnabled = false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Se olvidó la huella guardada en este dispositivo')),
+    );
   }
 
   @override
@@ -76,7 +267,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   alignment: Alignment.centerLeft,
                 ),
                 const SizedBox(height: 20),
-                
+
                 // Title
                 Text(
                   'Bienvenido de vuelta',
@@ -92,7 +283,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
                 const SizedBox(height: 32),
-                
+
                 // Form
                 Form(
                   key: _formKey,
@@ -112,17 +303,17 @@ class _LoginScreenState extends State<LoginScreen> {
                         style: const TextStyle(color: Colors.white),
                         keyboardType: TextInputType.emailAddress,
                         validator: Validators.validateEmail,
-                        enabled: !_isLoading,
+                        enabled: !_isLoading && !_isBiometricLoading,
                       ),
                       const SizedBox(height: 16),
-                      
+
                       PasswordField(
                         controller: _passwordController,
                         label: 'Contraseña',
-                        enabled: !_isLoading,
+                        enabled: !_isLoading && !_isBiometricLoading,
                         validator: Validators.validatePassword,
                       ),
-                      
+
                       if (_error != null) ...[
                         const SizedBox(height: 16),
                         Container(
@@ -155,14 +346,14 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                         ),
                       ],
-                      
+
                       const SizedBox(height: 24),
-                      
+
                       // Forgot password
                       Align(
                         alignment: Alignment.centerRight,
                         child: TextButton(
-                          onPressed: _isLoading ? null : () {
+                          onPressed: (_isLoading || _isBiometricLoading) ? null : () {
                             _showForgotPasswordDialog(context);
                           },
                           child: Text(
@@ -173,9 +364,9 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                         ),
                       ),
-                      
+
                       const SizedBox(height: 8),
-                      
+
                       // Login button
                       GradientButton(
                         onPressed: _handleLogin,
@@ -183,9 +374,98 @@ class _LoginScreenState extends State<LoginScreen> {
                         text: 'Iniciar sesión',
                         width: double.infinity,
                       ),
-                      
+
+                      // ============================================================
+                      // BLOQUE DE HUELLA
+                      // ============================================================
+                      if (!_checkingBiometric && _biometricAvailable && _biometricEnabled) ...[
+                        const SizedBox(height: 20),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Divider(
+                                color: theme.colorScheme.onSurfaceVariant.withOpacity(0.2),
+                              ),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 12),
+                              child: Text(
+                                'o',
+                                style: TextStyle(
+                                  color: theme.colorScheme.onSurfaceVariant.withOpacity(0.6),
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                            Expanded(
+                              child: Divider(
+                                color: theme.colorScheme.onSurfaceVariant.withOpacity(0.2),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        Center(
+                          child: InkWell(
+                            onTap: (_isLoading || _isBiometricLoading)
+                                ? null
+                                : _handleBiometricLogin,
+                            borderRadius: BorderRadius.circular(100),
+                            child: Container(
+                              width: 64,
+                              height: 64,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: theme.colorScheme.primary.withOpacity(0.1),
+                                border: Border.all(
+                                  color: theme.colorScheme.primary.withOpacity(0.3),
+                                ),
+                              ),
+                              child: _isBiometricLoading
+                                  ? Padding(
+                                      padding: const EdgeInsets.all(18),
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: theme.colorScheme.primary,
+                                      ),
+                                    )
+                                  : Icon(
+                                      Icons.fingerprint,
+                                      size: 36,
+                                      color: theme.colorScheme.primary,
+                                    ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Center(
+                          child: Text(
+                            'Iniciar sesión con huella',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: theme.colorScheme.onSurfaceVariant.withOpacity(0.7),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Center(
+                          child: TextButton(
+                            onPressed: (_isLoading || _isBiometricLoading)
+                                ? null
+                                : _forgetBiometricLogin,
+                            child: Text(
+                              'Olvidar huella guardada',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: theme.colorScheme.onSurfaceVariant.withOpacity(0.5),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+
                       const SizedBox(height: 20),
-                      
+
                       // Register link
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -197,7 +477,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                           ),
                           TextButton(
-                            onPressed: _isLoading ? null : () {
+                            onPressed: (_isLoading || _isBiometricLoading) ? null : () {
                               Navigator.pushReplacementNamed(context, '/register');
                             },
                             child: Text(
@@ -388,7 +668,7 @@ class _ForgotPasswordDialogState extends State<_ForgotPasswordDialog> {
               ],
             ),
             const SizedBox(height: 16),
-            
+
             if (_error != null)
               Container(
                 padding: const EdgeInsets.all(12),
@@ -420,7 +700,7 @@ class _ForgotPasswordDialogState extends State<_ForgotPasswordDialog> {
                   ],
                 ),
               ),
-            
+
             if (_success != null)
               Container(
                 padding: const EdgeInsets.all(12),
@@ -446,7 +726,7 @@ class _ForgotPasswordDialogState extends State<_ForgotPasswordDialog> {
                   ],
                 ),
               ),
-            
+
             if (_step == 1) ...[
               TextFormField(
                 controller: _emailController,
@@ -471,7 +751,7 @@ class _ForgotPasswordDialogState extends State<_ForgotPasswordDialog> {
                 width: double.infinity,
               ),
             ],
-            
+
             if (_step == 2) ...[
               TextFormField(
                 controller: _codeController,
@@ -498,7 +778,7 @@ class _ForgotPasswordDialogState extends State<_ForgotPasswordDialog> {
                 width: double.infinity,
               ),
             ],
-            
+
             if (_step == 3) ...[
               PasswordField(
                 controller: _passwordController,

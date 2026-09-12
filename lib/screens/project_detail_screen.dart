@@ -508,14 +508,28 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
   // ============================================================
   // BARRA SUPERIOR
   // ============================================================
-
+  //
+  // FIX OVERFLOW (66px): antes era un Row único con Spacer() entre
+  // "Volver al dashboard" y el grupo de botones (Colaboradores, tema,
+  // PDF). Spacer() necesita un ancho acotado para funcionar y, en
+  // pantallas angostas, la suma de anchos fijos de los botones superaba
+  // el ancho disponible -> RenderFlex overflowed.
+  //
+  // Solución: usar un Wrap con spaceBetween. Wrap nunca desborda: si no
+  // cabe todo en una línea, el grupo de acciones simplemente pasa a la
+  // siguiente línea en vez de recortarse o desbordar.
   Widget _buildTopBar(BuildContext context, bool isDark) {
     final theme = Theme.of(context);
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-      child: Row(
+      child: Wrap(
+        alignment: WrapAlignment.spaceBetween,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        spacing: 8,
+        runSpacing: 8,
         children: [
+          // Botón "Volver al dashboard"
           InkWell(
             onTap: () => Navigator.pop(context),
             borderRadius: BorderRadius.circular(8),
@@ -542,109 +556,114 @@ class _ProjectDetailScreenState extends State<ProjectDetailScreen>
               ),
             ),
           ),
-          const Spacer(),
-          // Botón Colaboradores
-          InkWell(
-            onTap: _showContributorsModal,
-            borderRadius: BorderRadius.circular(10),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
+          // Grupo de acciones: Colaboradores, tema, PDF
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Botón Colaboradores
+              InkWell(
+                onTap: _showContributorsModal,
                 borderRadius: BorderRadius.circular(10),
-                color: theme.colorScheme.secondary.withOpacity(0.1),
-                border: Border.all(
-                  color: theme.colorScheme.secondary.withOpacity(0.25),
-                ),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.group,
-                    size: 16,
-                    color: theme.colorScheme.secondary,
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    'Colaboradores',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: theme.colorScheme.secondary,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(10),
+                    color: theme.colorScheme.secondary.withOpacity(0.1),
+                    border: Border.all(
+                      color: theme.colorScheme.secondary.withOpacity(0.25),
                     ),
                   ),
-                  const SizedBox(width: 6),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(10),
-                      color: theme.colorScheme.secondary.withOpacity(0.15),
-                    ),
-                    child: Text(
-                      '$_contributorsCount',
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.group,
+                        size: 16,
                         color: theme.colorScheme.secondary,
                       ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          // Botón de tema
-          IconButton(
-            onPressed: () {
-              final themeProvider = context.read<ThemeProvider>();
-              themeProvider.toggleTheme();
-            },
-            icon: Icon(
-              isDark ? Icons.light_mode : Icons.dark_mode,
-              size: 18,
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-            style: IconButton.styleFrom(
-              backgroundColor: _glassSurfaceBackground(theme, lightOpacity: 0.5, darkOpacity: 0.35),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-              padding: const EdgeInsets.all(8),
-              minimumSize: const Size(36, 36),
-            ),
-          ),
-          const SizedBox(width: 8),
-          // Botón PDF
-          if (_project?.status == 'completed')
-            InkWell(
-              onTap: _isExporting ? null : _exportPdf,
-              borderRadius: BorderRadius.circular(10),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(10),
-                  color: theme.colorScheme.primary,
-                ),
-                child: _isExporting
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : Text(
-                        _totalSelectedCount > 0 ? 'PDF ($_totalSelectedCount)' : 'PDF',
-                        style: const TextStyle(
+                      const SizedBox(width: 4),
+                      Text(
+                        'Colaboradores',
+                        style: TextStyle(
                           fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                          color: theme.colorScheme.secondary,
                         ),
                       ),
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(10),
+                          color: theme.colorScheme.secondary.withOpacity(0.15),
+                        ),
+                        child: Text(
+                          '$_contributorsCount',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: theme.colorScheme.secondary,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
-            ),
+              const SizedBox(width: 8),
+              // Botón de tema
+              IconButton(
+                onPressed: () {
+                  final themeProvider = context.read<ThemeProvider>();
+                  themeProvider.toggleTheme();
+                },
+                icon: Icon(
+                  isDark ? Icons.light_mode : Icons.dark_mode,
+                  size: 18,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+                style: IconButton.styleFrom(
+                  backgroundColor: _glassSurfaceBackground(theme, lightOpacity: 0.5, darkOpacity: 0.35),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  padding: const EdgeInsets.all(8),
+                  minimumSize: const Size(36, 36),
+                ),
+              ),
+              const SizedBox(width: 8),
+              // Botón PDF
+              if (_project?.status == 'completed')
+                InkWell(
+                  onTap: _isExporting ? null : _exportPdf,
+                  borderRadius: BorderRadius.circular(10),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(10),
+                      color: theme.colorScheme.primary,
+                    ),
+                    child: _isExporting
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : Text(
+                            _totalSelectedCount > 0 ? 'PDF ($_totalSelectedCount)' : 'PDF',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                  ),
+                ),
+            ],
+          ),
         ],
       ),
     );

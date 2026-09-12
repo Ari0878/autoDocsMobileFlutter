@@ -75,7 +75,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (projectsResponse.statusCode == 200) {
         final projects = projectsResponse.data as List;
         _projectsUsed = projects.length;
-        
+
         final plan = _planData?['plan'] ?? 'free';
         final limits = {'free': 3, 'pro': 20, 'enterprise': -1};
         _projectsLimit = limits[plan] ?? 3;
@@ -710,28 +710,41 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
             child: Column(
               children: [
+                // FIX OVERFLOW (11px): antes la Column con el nombre y los
+                // detalles del plan no tenía Expanded. Con nombres/detalles
+                // largos (p. ej. "Plan Enterprise" + su descripción) y poco
+                // ancho disponible (pantallas angostas), el Row con
+                // spaceBetween no tenía forma de ceder espacio y se
+                // desbordaba. Envolver esa Column en Expanded permite que
+                // el texto se ajuste (wrap) al ancho disponible en vez de
+                // empujar el layout más allá del límite.
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          _getPlanName(plan),
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _getPlanName(plan),
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
-                        ),
-                        Text(
-                          _getPlanDetails(plan),
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant.withOpacity(0.7),
+                          Text(
+                            _getPlanDetails(plan),
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant.withOpacity(0.7),
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
+                    const SizedBox(width: 12),
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.end,
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
                           _getPlanPrice(plan),

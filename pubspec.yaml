@@ -10,6 +10,8 @@ dependencies:
   flutter:
     sdk: flutter
   
+  local_auth: ^2.3.0
+  
    # GRÁFICOS
   fl_chart: ^0.68.0
   
